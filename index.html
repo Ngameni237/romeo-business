@@ -37,7 +37,7 @@ footer{margin-top:2rem;background:var(--bleu-fonce);color:#cfd7f7;text-align:cen
 #vue-connexion{display:none;max-width:26rem;margin:0 auto;padding:2rem 1.2rem}
 body.connexion #vue-accueil{display:none}
 body.connexion #vue-connexion{display:block}
-#vue-espace{display:none;max-width:30rem;margin:0 auto;padding:2rem 1.2rem}
+#vue-espace{display:none;max-width:42rem;margin:0 auto;padding:2rem 1.2rem}
 body.espace #vue-accueil,body.espace #vue-connexion{display:none}
 body.espace #vue-espace{display:block}
 .carte{background:var(--carte);border:1px solid var(--ligne);border-radius:8px;padding:1.3rem}
@@ -47,6 +47,19 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 .retour{display:inline-block;margin-bottom:1rem;color:var(--bleu);font-weight:800}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .retour{color:var(--or)}}
 @media (min-width:720px){.affiches img{flex-basis:300px;width:300px}.infos{grid-template-columns:1fr 1fr}}
+.onglets{display:flex;gap:.5rem;margin:.8rem 0}
+.onglet{flex:1;padding:.6rem;border:2px solid var(--bleu);border-radius:6px;background:transparent;color:var(--texte);font:800 .95rem 'Nunito',sans-serif;cursor:pointer}
+.onglet.on{background:var(--bleu);color:#fff}
+.ajout{display:grid;gap:.5rem;margin:1rem 0}
+.ligne{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.6rem 0;border-top:1px solid var(--ligne)}
+.nom{flex:1 1 10rem;display:flex;flex-direction:column}
+.poste{font-size:.85rem;opacity:.75}
+.petit{padding:.45rem .7rem;border:2px solid var(--bleu);border-radius:6px;background:transparent;color:var(--texte);font:800 .85rem 'Nunito',sans-serif;cursor:pointer}
+.petit.on{background:var(--bleu);color:#fff}
+.petit.rouge{border-color:#d64538;color:#d64538}
+.bilan{font-weight:700;margin:.2rem 0 0}
+.fini{display:flex;align-items:center;gap:.35rem;font-weight:700;font-size:.85rem;margin:0}
+.fini input{width:1.2rem;height:1.2rem;padding:0}
 </style>
 </head>
 <body>
@@ -85,7 +98,7 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 <div id="vue-connexion">
   <a class="retour" href="#accueil">Retour à l’accueil</a>
   <div class="carte">
-    <h2>Connexion <small style="font-weight:600;font-size:.7rem;opacity:.7">version 2</small></h2>
+    <h2>Connexion</h2>
     <label for="acces">Votre accès</label>
     <select id="acces">
       <option value="g1">Responsable groupe 1 (6h à 20h)</option>
@@ -102,13 +115,23 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 <div id="vue-espace">
   <div class="carte">
     <h2 id="bienvenue">Connecté</h2>
-    <p>Le gestionnaire de présence arrive à l’étape suivante.</p>
-    <button class="bouton" id="sortir" type="button">Se déconnecter</button>
+    <div class="onglets" id="onglets"></div>
+    <h3 id="titreGroupe" style="margin:.8rem 0 0"></h3>
+    <p class="bilan" id="bilan"></p>
+    <div class="ajout">
+      <input id="nom" type="text" placeholder="Nom de l’employé" autocomplete="off">
+      <select id="poste"><option value="rouleur">Rouleur de bonbons</option><option value="malaxeur">Malaxeur de pâte</option></select>
+      <button class="bouton" id="ajouter" type="button">Ajouter l’employé</button>
+    </div>
+    <p id="erreurEspace" role="status"></p>
+    <div id="liste"></div>
+    <button class="bouton" id="sortir" type="button" style="margin-top:1.2rem">Se déconnecter</button>
   </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, updateDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 /* 1. Colle ici la configuration de ton projet Firebase (Paramètres du projet > Vos applications). */
@@ -123,14 +146,17 @@ const firebaseConfig = {
 
 /* 2. Les trois comptes à créer dans Firebase > Authentication. Le mot de passe de chaque compte est le code d’accès. */
 const COMPTES = {
-  g1:     { email: "groupe1@romeobusiness.app", nom: "Responsable groupe 1" },
-  g2:     { email: "groupe2@romeobusiness.app", nom: "Responsable groupe 2" },
-  patron: { email: "patron@romeobusiness.app",  nom: "Patron" }
+  g1:     { email: "groupe1@romeobusiness.app", nom: "Responsable groupe 1", groupe: 1 },
+  g2:     { email: "groupe2@romeobusiness.app", nom: "Responsable groupe 2", groupe: 2 },
+  patron: { email: "patron@romeobusiness.app",  nom: "Patron", groupe: 0 }
 };
 
 const msg = document.getElementById('msg');
 const configure = firebaseConfig.apiKey !== "COLLE_ICI";
-const auth = configure ? getAuth(initializeApp(firebaseConfig)) : null;
+const app = configure ? initializeApp(firebaseConfig) : null;
+const auth = app ? getAuth(app) : null;
+/* Garde une copie sur l’appareil : les présences se saisissent sans réseau et partent dès le retour d’internet. */
+const db = app ? initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }) : null;
 
 function vue(){
   var h = location.hash;
@@ -146,10 +172,89 @@ function nomDuCompte(email){
   return 'Connecté';
 }
 
+const POSTES = { rouleur: 'Rouleur de bonbons', malaxeur: 'Malaxeur de pâte' };
+const aujourdhui = function(){ return new Date().toLocaleDateString('sv-SE'); };
+let groupes = [], actif = 0, coupe = [], employes = [], presences = {};
+
+function el(t, c, x){ var n = document.createElement(t); if (c) n.className = c; if (x !== undefined) n.textContent = x; return n; }
+function compte(email){ for (var k in COMPTES) if (COMPTES[k].email === email) return COMPTES[k]; return null; }
+function erreur(e){ document.getElementById('erreurEspace').textContent = 'Action refusée ou pas de réseau. Réessayez.'; console.error(e); }
+function arreter(){ coupe.forEach(function(f){ f(); }); coupe = []; employes = []; presences = {}; }
+
+function demarrer(c){
+  groupes = c.groupe ? [c.groupe] : [1, 2];
+  choisir(groupes[0]);
+}
+function choisir(g){
+  arreter(); actif = g;
+  coupe.push(onSnapshot(query(collection(db, 'employes'), where('groupe', '==', g), where('actif', '==', true)), function(s){
+    employes = s.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })
+      .sort(function(a, b){ return a.nom.localeCompare(b.nom); });
+    dessiner();
+  }, erreur));
+  coupe.push(onSnapshot(query(collection(db, 'presences'), where('groupe', '==', g), where('date', '==', aujourdhui())), function(s){
+    presences = {};
+    s.docs.forEach(function(d){ presences[d.data().employeId] = d.data(); });
+    dessiner();
+  }, erreur));
+  dessiner();
+}
+function dessiner(){
+  var on = document.getElementById('onglets'); on.replaceChildren();
+  if (groupes.length > 1) groupes.forEach(function(g){
+    var b = el('button', 'onglet' + (g === actif ? ' on' : ''), 'Groupe ' + g);
+    b.onclick = function(){ choisir(g); }; on.appendChild(b);
+  });
+  document.getElementById('titreGroupe').textContent = 'Groupe ' + actif + ' (' + (actif === 1 ? '6h à 20h' : '20h à 7h') + ')';
+  var p = 0, a = 0, f = 0;
+  var l = document.getElementById('liste'); l.replaceChildren();
+  if (!employes.length) l.appendChild(el('p', '', 'Aucun employé pour l’instant.'));
+  employes.forEach(function(e){
+    var pr = presences[e.id] || {}, st = pr.statut; if (st === 'present') p++; if (st === 'absent') a++; if (st === 'present' && pr.fini) f++;
+    var r = el('div', 'ligne'), n = el('div', 'nom');
+    n.appendChild(el('strong', '', e.nom)); n.appendChild(el('span', 'poste', POSTES[e.poste] || e.poste));
+    r.appendChild(n);
+    [['present', 'Présent'], ['absent', 'Absent']].forEach(function(x){
+      var b = el('button', 'petit' + (st === x[0] ? ' on' : ''), x[1]);
+      b.onclick = function(){ marquer(e, x[0]); }; r.appendChild(b);
+    });
+    if (st === 'present') {
+      var lab = el('label', 'fini'), cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !!pr.fini;
+      cb.onchange = function(){ terminer(e, cb.checked); };
+      lab.appendChild(cb); lab.appendChild(document.createTextNode('A fini son service'));
+      r.appendChild(lab);
+    }
+    var d = el('button', 'petit rouge', 'Démission'); d.onclick = function(){ demission(e); };
+    r.appendChild(d); l.appendChild(r);
+  });
+  document.getElementById('bilan').textContent = 'Aujourd’hui : ' + p + ' présents, ' + a + ' absents, ' + (employes.length - p - a) + ' non marqués, ' + f + ' ont fini leur service';
+}
+function marquer(e, s){
+  document.getElementById('erreurEspace').textContent = '';
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), statut: s, maj: serverTimestamp() }).catch(erreur);
+}
+function terminer(e, v){
+  document.getElementById('erreurEspace').textContent = '';
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), statut: 'present', fini: v, maj: serverTimestamp() }, { merge: true }).catch(erreur);
+}
+function demission(e){
+  if (!confirm('Enregistrer la démission de ' + e.nom + ' ?')) return;
+  updateDoc(doc(db, 'employes', e.id), { actif: false, demission: aujourdhui() }).catch(erreur);
+}
+document.getElementById('ajouter').addEventListener('click', function(){
+  var champ = document.getElementById('nom'), nom = champ.value.trim();
+  if (!nom) { document.getElementById('erreurEspace').textContent = 'Écrivez le nom de l’employé.'; return; }
+  document.getElementById('erreurEspace').textContent = '';
+  addDoc(collection(db, 'employes'), { nom: nom, poste: document.getElementById('poste').value, groupe: actif, actif: true, arrivee: aujourdhui(), creeLe: serverTimestamp() }).catch(erreur);
+  champ.value = '';
+});
+
 if (auth) {
   onAuthStateChanged(auth, function(u){
     if (u) {
       document.getElementById('bienvenue').textContent = nomDuCompte(u.email);
+      var c = compte(u.email); if (c) demarrer(c);
       if (location.hash === '#connexion') location.hash = '#espace';
     } else if (location.hash === '#espace') {
       location.hash = '#connexion';
@@ -176,6 +281,7 @@ document.getElementById('ok').addEventListener('click', async function(){
 });
 
 document.getElementById('sortir').addEventListener('click', async function(){
+  arreter();
   if (auth) await signOut(auth);
   location.hash = '#accueil';
 });
