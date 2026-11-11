@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Romeo Business SARL</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16358f">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Nunito:wght@400;600;800&display=swap">
 <style>
 :root{
@@ -156,6 +159,7 @@ const COMPTES = {
   patron: { email: "patron@romeobusiness.app",  nom: "Patron", groupe: 0 }
 };
 
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 const msg = document.getElementById('msg');
 const configure = firebaseConfig.apiKey !== "COLLE_ICI";
 const app = configure ? initializeApp(firebaseConfig) : null;
