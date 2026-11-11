@@ -62,6 +62,9 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 .petit.rouge{border-color:#d64538;color:#d64538}
 .bilan{font-weight:700;margin:.2rem 0 0}
 .fini{display:flex;align-items:center;gap:.35rem;font-weight:700;font-size:.85rem;margin:0}
+.horloge{font:800 2rem/1.1 'Nunito',sans-serif;letter-spacing:.04em;margin:.4rem 0 0;color:var(--bleu)}
+.datelongue{margin:.1rem 0 .6rem;text-transform:capitalize}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .horloge{color:var(--or)}}
 .hs{width:5.5rem;padding:.4rem}
 .fini input{width:1.2rem;height:1.2rem;padding:0}
 </style>
@@ -113,12 +116,16 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     <input id="code" type="password" autocomplete="current-password" inputmode="numeric">
     <p id="msg" role="status"></p>
     <button class="bouton" id="ok" type="button">Se connecter</button>
+    <p style="margin:1.2rem 0 0"><button class="petit" id="demo" type="button">Voir la démonstration</button></p>
   </div>
 </div>
 
 <div id="vue-espace">
   <div class="carte">
     <h2 id="bienvenue">Connecté</h2>
+    <p id="bandeauDemo" hidden style="background:var(--or);color:var(--bleu-fonce);font-weight:800;padding:.5rem .7rem;border-radius:6px">Mode démonstration : données fictives, rien n’est enregistré.</p>
+    <p class="horloge" id="horloge" aria-label="Heure actuelle"></p>
+    <p class="datelongue" id="dateLongue"></p>
     <div class="onglets" id="onglets"></div>
     <h3 id="titreGroupe" style="margin:.8rem 0 0"></h3>
     <p class="bilan" id="bilan"></p>
@@ -160,6 +167,12 @@ const COMPTES = {
 };
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+function tic(){
+  var n = new Date();
+  document.getElementById('horloge').textContent = n.toLocaleTimeString('fr-FR');
+  document.getElementById('dateLongue').textContent = n.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+tic(); setInterval(tic, 1000);
 const msg = document.getElementById('msg');
 const configure = firebaseConfig.apiKey !== "COLLE_ICI";
 const app = configure ? initializeApp(firebaseConfig) : null;
@@ -184,7 +197,7 @@ function nomDuCompte(email){
 const POSTES = { rouleur: 'Rouleur de bonbons', malaxeur: 'Malaxeur de pâte' };
 const aujourdhui = function(){ return new Date().toLocaleDateString('sv-SE'); };
 const lundi = function(){ var d = new Date(); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.toLocaleDateString('sv-SE'); };
-let groupes = [], actif = 0, coupe = [], employes = [], presences = {}, semaine = [];
+let groupes = [], actif = 0, coupe = [], employes = [], presences = {}, semaine = [], demo = false, dEmp = [], dPres = {};
 
 function el(t, c, x){ var n = document.createElement(t); if (c) n.className = c; if (x !== undefined) n.textContent = x; return n; }
 function compte(email){ for (var k in COMPTES) if (COMPTES[k].email === email) return COMPTES[k]; return null; }
@@ -192,11 +205,13 @@ function erreur(e){ document.getElementById('erreurEspace').textContent = 'Actio
 function arreter(){ coupe.forEach(function(f){ f(); }); coupe = []; employes = []; presences = {}; semaine = []; }
 
 function demarrer(c){
+  demo = false; document.getElementById('bandeauDemo').hidden = true;
   groupes = c.groupe ? [c.groupe] : [1, 2];
   choisir(groupes[0]);
 }
 function choisir(g){
   arreter(); actif = g;
+  if (demo) { demoCharger(); return; }
   coupe.push(onSnapshot(query(collection(db, 'employes'), where('groupe', '==', g), where('actif', '==', true)), function(s){
     employes = s.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })
       .sort(function(a, b){ return a.nom.localeCompare(b.nom); });
@@ -212,6 +227,32 @@ function choisir(g){
     dessiner();
   }, erreur));
   dessiner();
+}
+function demoCharger(){
+  employes = dEmp.filter(function(e){ return e.groupe === actif && e.actif; })
+    .sort(function(a, b){ return a.nom.localeCompare(b.nom); });
+  presences = dPres;
+  semaine = Object.keys(dPres).map(function(k){ return dPres[k]; }).concat([{ employeId: 'd0', heuresSup: 3 }, { employeId: 'd5', heuresSup: 2 }]);
+  dessiner();
+}
+function demarrerDemo(){
+  demo = true; arreter();
+  var j = aujourdhui();
+  dEmp = [['Jean Mbarga', 'rouleur', 1], ['Paul Essomba', 'malaxeur', 1], ['Marie Tchoua', 'rouleur', 1], ['Alain Fotso', 'malaxeur', 1],
+          ['Éric Kamga', 'malaxeur', 2], ['Grace Ndjock', 'rouleur', 2], ['Hervé Ngono', 'rouleur', 2], ['Bruno Tchinda', 'malaxeur', 2]]
+    .map(function(x, i){ return { id: 'd' + i, nom: x[0], poste: x[1], groupe: x[2], actif: true, arrivee: (i === 3 || i === 7) ? j : '2026-09-01' }; });
+  dPres = {
+    d0: { employeId: 'd0', groupe: 1, statut: 'present', heuresSup: 2 },
+    d1: { employeId: 'd1', groupe: 1, statut: 'present', fini: true },
+    d2: { employeId: 'd2', groupe: 1, statut: 'absent' },
+    d4: { employeId: 'd4', groupe: 2, statut: 'present' },
+    d5: { employeId: 'd5', groupe: 2, statut: 'present', heuresSup: 1.5 }
+  };
+  document.getElementById('bienvenue').textContent = 'Démonstration (Patron)';
+  document.getElementById('bandeauDemo').hidden = false;
+  groupes = [1, 2];
+  location.hash = '#espace';
+  choisir(1);
 }
 function dessiner(){
   var on = document.getElementById('onglets'); on.replaceChildren();
@@ -263,24 +304,29 @@ function dessiner(){
   document.getElementById('bilan').textContent = 'Aujourd’hui : ' + p + ' présents, ' + a + ' absents, ' + (employes.length - p - a) + ' non marqués, ' + f + ' ont fini leur service';
 }
 function marquer(e, s){
+  if (demo) { dPres[e.id] = { employeId: e.id, groupe: e.groupe, statut: s }; demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
   setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: s, maj: serverTimestamp() }).catch(erreur);
 }
 function terminer(e, v){
+  if (demo) { dPres[e.id] = Object.assign({}, dPres[e.id], { fini: v }); demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
   setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', fini: v, maj: serverTimestamp() }, { merge: true }).catch(erreur);
 }
 function heuresSup(e, v){
+  if (demo) { dPres[e.id] = Object.assign({}, dPres[e.id], { heuresSup: Math.max(0, Number(v) || 0) }); demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
   setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', heuresSup: Math.max(0, Number(v) || 0), maj: serverTimestamp() }, { merge: true }).catch(erreur);
 }
 function demission(e){
   if (!confirm('Enregistrer la démission de ' + e.nom + ' ?')) return;
+  if (demo) { e.actif = false; demoCharger(); return; }
   updateDoc(doc(db, 'employes', e.id), { actif: false, demission: aujourdhui() }).catch(erreur);
 }
 document.getElementById('ajouter').addEventListener('click', function(){
   var champ = document.getElementById('nom'), nom = champ.value.trim();
   if (!nom) { document.getElementById('erreurEspace').textContent = 'Écrivez le nom de l’employé.'; return; }
+  if (demo) { dEmp.push({ id: 'd' + Date.now(), nom: nom, poste: document.getElementById('poste').value, groupe: actif, actif: true, arrivee: aujourdhui() }); champ.value = ''; demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
   addDoc(collection(db, 'employes'), { nom: nom, poste: document.getElementById('poste').value, groupe: actif, actif: true, arrivee: aujourdhui(), creeLe: serverTimestamp() }).catch(erreur);
   champ.value = '';
@@ -298,6 +344,7 @@ if (auth) {
   });
 }
 
+document.getElementById('demo').addEventListener('click', demarrerDemo);
 document.getElementById('ok').addEventListener('click', async function(){
   var code = document.getElementById('code').value;
   var cle = document.getElementById('acces').value;
@@ -317,6 +364,7 @@ document.getElementById('ok').addEventListener('click', async function(){
 });
 
 document.getElementById('sortir').addEventListener('click', async function(){
+  demo = false; document.getElementById('bandeauDemo').hidden = true;
   arreter();
   if (auth) await signOut(auth);
   location.hash = '#accueil';
