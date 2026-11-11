@@ -59,6 +59,7 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 .petit.rouge{border-color:#d64538;color:#d64538}
 .bilan{font-weight:700;margin:.2rem 0 0}
 .fini{display:flex;align-items:center;gap:.35rem;font-weight:700;font-size:.85rem;margin:0}
+.hs{width:5.5rem;padding:.4rem}
 .fini input{width:1.2rem;height:1.2rem;padding:0}
 </style>
 </head>
@@ -125,6 +126,10 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     </div>
     <p id="erreurEspace" role="status"></p>
     <div id="liste"></div>
+    <h3 style="margin:1.4rem 0 .3rem">Heures supplémentaires de la semaine</h3>
+    <div id="heures"></div>
+    <h3 style="margin:1.4rem 0 .3rem">Nouveaux arrivants de la semaine</h3>
+    <div id="nouveaux"></div>
     <button class="bouton" id="sortir" type="button" style="margin-top:1.2rem">Se déconnecter</button>
   </div>
 </div>
@@ -174,12 +179,13 @@ function nomDuCompte(email){
 
 const POSTES = { rouleur: 'Rouleur de bonbons', malaxeur: 'Malaxeur de pâte' };
 const aujourdhui = function(){ return new Date().toLocaleDateString('sv-SE'); };
-let groupes = [], actif = 0, coupe = [], employes = [], presences = {};
+const lundi = function(){ var d = new Date(); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.toLocaleDateString('sv-SE'); };
+let groupes = [], actif = 0, coupe = [], employes = [], presences = {}, semaine = [];
 
 function el(t, c, x){ var n = document.createElement(t); if (c) n.className = c; if (x !== undefined) n.textContent = x; return n; }
 function compte(email){ for (var k in COMPTES) if (COMPTES[k].email === email) return COMPTES[k]; return null; }
 function erreur(e){ document.getElementById('erreurEspace').textContent = 'Action refusée ou pas de réseau. Réessayez.'; console.error(e); }
-function arreter(){ coupe.forEach(function(f){ f(); }); coupe = []; employes = []; presences = {}; }
+function arreter(){ coupe.forEach(function(f){ f(); }); coupe = []; employes = []; presences = {}; semaine = []; }
 
 function demarrer(c){
   groupes = c.groupe ? [c.groupe] : [1, 2];
@@ -195,6 +201,10 @@ function choisir(g){
   coupe.push(onSnapshot(query(collection(db, 'presences'), where('groupe', '==', g), where('date', '==', aujourdhui())), function(s){
     presences = {};
     s.docs.forEach(function(d){ presences[d.data().employeId] = d.data(); });
+    dessiner();
+  }, erreur));
+  coupe.push(onSnapshot(query(collection(db, 'presences'), where('groupe', '==', g), where('semaine', '==', lundi())), function(s){
+    semaine = s.docs.map(function(d){ return d.data(); });
     dessiner();
   }, erreur));
   dessiner();
@@ -225,18 +235,40 @@ function dessiner(){
       lab.appendChild(cb); lab.appendChild(document.createTextNode('A fini son service'));
       r.appendChild(lab);
     }
+    if (st === 'present') {
+      var hs = document.createElement('input');
+      hs.type = 'number'; hs.min = '0'; hs.step = '0.5'; hs.className = 'hs';
+      hs.placeholder = 'h sup'; hs.title = 'Heures supplémentaires du jour';
+      hs.value = pr.heuresSup || '';
+      hs.onchange = function(){ heuresSup(e, hs.value); };
+      r.appendChild(hs);
+    }
     var d = el('button', 'petit rouge', 'Démission'); d.onclick = function(){ demission(e); };
     r.appendChild(d); l.appendChild(r);
   });
+  var tot = {};
+  semaine.forEach(function(x){ if (x.heuresSup) tot[x.employeId] = (tot[x.employeId] || 0) + x.heuresSup; });
+  var hz = document.getElementById('heures'); hz.replaceChildren();
+  var avec = employes.filter(function(e){ return tot[e.id]; });
+  if (!avec.length) hz.appendChild(el('p', '', 'Aucune heure supplémentaire cette semaine.'));
+  avec.forEach(function(e){ hz.appendChild(el('p', '', e.nom + ' (' + (POSTES[e.poste] || e.poste) + ') : ' + tot[e.id] + ' h')); });
+  var nv = document.getElementById('nouveaux'); nv.replaceChildren();
+  var recents = employes.filter(function(e){ return e.arrivee >= lundi(); });
+  if (!recents.length) nv.appendChild(el('p', '', 'Aucun nouvel arrivant cette semaine.'));
+  recents.forEach(function(e){ nv.appendChild(el('p', '', e.nom + ' (' + (POSTES[e.poste] || e.poste) + '), arrivé le ' + e.arrivee)); });
   document.getElementById('bilan').textContent = 'Aujourd’hui : ' + p + ' présents, ' + a + ' absents, ' + (employes.length - p - a) + ' non marqués, ' + f + ' ont fini leur service';
 }
 function marquer(e, s){
   document.getElementById('erreurEspace').textContent = '';
-  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), statut: s, maj: serverTimestamp() }).catch(erreur);
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: s, maj: serverTimestamp() }).catch(erreur);
 }
 function terminer(e, v){
   document.getElementById('erreurEspace').textContent = '';
-  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), statut: 'present', fini: v, maj: serverTimestamp() }, { merge: true }).catch(erreur);
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', fini: v, maj: serverTimestamp() }, { merge: true }).catch(erreur);
+}
+function heuresSup(e, v){
+  document.getElementById('erreurEspace').textContent = '';
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', heuresSup: Math.max(0, Number(v) || 0), maj: serverTimestamp() }, { merge: true }).catch(erreur);
 }
 function demission(e){
   if (!confirm('Enregistrer la démission de ' + e.nom + ' ?')) return;
