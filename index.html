@@ -131,7 +131,7 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     <p class="bilan" id="bilan"></p>
     <div class="ajout">
       <input id="nom" type="text" placeholder="Nom de l’employé" autocomplete="off">
-      <select id="poste"><option value="rouleur">Rouleur de bonbons</option><option value="malaxeur">Malaxeur de pâte</option></select>
+      <select id="poste"><option value="rouleur">Rouleur de bonbons</option><option value="malaxeur">Malaxeur de pâte</option><option value="cuisinier">Cuisinier</option><option value="nettoyeur">Nettoyeur</option><option value="mesureur">Mesureur de lait</option></select>
       <button class="bouton" id="ajouter" type="button">Ajouter l’employé</button>
     </div>
     <p id="erreurEspace" role="status"></p>
@@ -194,7 +194,7 @@ function nomDuCompte(email){
   return 'Connecté';
 }
 
-const POSTES = { rouleur: 'Rouleur de bonbons', malaxeur: 'Malaxeur de pâte' };
+const POSTES = { rouleur: 'Rouleur de bonbons', malaxeur: 'Malaxeur de pâte', cuisinier: 'Cuisinier', nettoyeur: 'Nettoyeur', mesureur: 'Mesureur de lait' };
 const aujourdhui = function(){ return new Date().toLocaleDateString('sv-SE'); };
 const lundi = function(){ var d = new Date(); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.toLocaleDateString('sv-SE'); };
 let groupes = [], actif = 0, coupe = [], employes = [], presences = {}, semaine = [], demo = false, dEmp = [], dPres = {};
