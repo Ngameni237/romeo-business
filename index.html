@@ -69,6 +69,7 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 .horloge{font:800 2rem/1.1 'Nunito',sans-serif;letter-spacing:.04em;margin:.4rem 0 0;color:var(--bleu)}
 .datelongue{margin:.1rem 0 .6rem;text-transform:capitalize}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .horloge{color:var(--or)}}
+.surligne{outline:3px solid var(--or);outline-offset:4px;border-radius:6px}
 .hs{width:5.5rem;padding:.4rem}
 .fini input{width:1.2rem;height:1.2rem;padding:0}
 </style>
@@ -89,7 +90,6 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     <input id="code" type="password" autocomplete="current-password" inputmode="numeric">
     <p id="msg" role="status"></p>
     <button class="bouton" id="ok" type="button">Se connecter</button>
-    <p style="margin:1.2rem 0 0"><button class="petit" id="demo" type="button">Voir la démonstration</button></p>
   </div>
 </div>
 
@@ -113,13 +113,25 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     <div id="heures"></div>
     <h3 style="margin:1.4rem 0 .3rem">Nouveaux arrivants de la semaine</h3>
     <div id="nouveaux"></div>
+    <h3 style="margin:1.4rem 0 .3rem">Historique</h3>
+    <input type="date" id="dateHisto">
+    <div id="histo" style="margin-top:.5rem"></div>
+    <button class="petit" id="aide" type="button" style="margin-top:1.2rem">Didacticiel</button>
     <button class="bouton" id="sortir" type="button" style="margin-top:1.2rem">Se déconnecter</button>
   </div>
 </div>
 
+<div id="tuto" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--carte);color:var(--texte);border-top:4px solid var(--or);padding:1rem 1.2rem calc(1rem + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 20px rgba(0,0,0,.35)">
+  <strong id="tutoTitre"></strong><span id="tutoNum" style="float:right;opacity:.7"></span>
+  <p id="tutoTexte" style="margin:.5rem 0 .8rem"></p>
+  <button class="petit" id="tutoPrec" type="button">Précédent</button>
+  <button class="petit on" id="tutoSuiv" type="button">Suivant</button>
+  <button class="petit" id="tutoFin" type="button">Fermer</button>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, updateDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, updateDoc, query, where, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 /* 1. Colle ici la configuration de ton projet Firebase (Paramètres du projet > Vos applications). */
@@ -183,6 +195,7 @@ function demarrer(c){
 }
 function choisir(g){
   arreter(); actif = g;
+  var dh = document.getElementById('dateHisto'); dh.max = aujourdhui(); dh.value = aujourdhui(); chargerHisto();
   if (demo) { demoCharger(); return; }
   coupe.push(onSnapshot(query(collection(db, 'employes'), where('groupe', '==', g), where('actif', '==', true)), function(s){
     employes = s.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })
@@ -260,6 +273,7 @@ function dessiner(){
       hs.onchange = function(){ heuresSup(e, hs.value); };
       r.appendChild(hs);
     }
+    var m = el('button', 'petit', 'Modifier'); m.onclick = function(){ renommer(e); }; r.appendChild(m);
     var d = el('button', 'petit rouge', 'Démission'); d.onclick = function(){ demission(e); };
     r.appendChild(d); l.appendChild(r);
   });
@@ -276,19 +290,70 @@ function dessiner(){
   document.getElementById('bilan').textContent = 'Aujourd’hui : ' + p + ' présents, ' + a + ' absents, ' + (employes.length - p - a) + ' non marqués, ' + f + ' ont fini leur service';
 }
 function marquer(e, s){
-  if (demo) { dPres[e.id] = { employeId: e.id, groupe: e.groupe, statut: s }; demoCharger(); return; }
+  if (demo) { dPres[e.id] = { employeId: e.id, nom: e.nom, groupe: e.groupe, statut: s }; demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
-  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: s, maj: serverTimestamp() }).catch(erreur);
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, nom: e.nom, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: s, maj: serverTimestamp() }).catch(erreur);
 }
 function terminer(e, v){
   if (demo) { dPres[e.id] = Object.assign({}, dPres[e.id], { fini: v }); demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
-  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', fini: v, maj: serverTimestamp() }, { merge: true }).catch(erreur);
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, nom: e.nom, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', fini: v, maj: serverTimestamp() }, { merge: true }).catch(erreur);
 }
 function heuresSup(e, v){
   if (demo) { dPres[e.id] = Object.assign({}, dPres[e.id], { heuresSup: Math.max(0, Number(v) || 0) }); demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
-  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', heuresSup: Math.max(0, Number(v) || 0), maj: serverTimestamp() }, { merge: true }).catch(erreur);
+  setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, nom: e.nom, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', heuresSup: Math.max(0, Number(v) || 0), maj: serverTimestamp() }, { merge: true }).catch(erreur);
+}
+function renommer(e){
+  var n = prompt('Nouveau nom pour ' + e.nom + ' :', e.nom);
+  if (!n || !n.trim() || n.trim() === e.nom) return;
+  if (demo) { e.nom = n.trim(); demoCharger(); return; }
+  updateDoc(doc(db, 'employes', e.id), { nom: n.trim() }).catch(erreur);
+}
+async function chargerHisto(){
+  var d = document.getElementById('dateHisto').value || aujourdhui();
+  var z = document.getElementById('histo'); z.replaceChildren();
+  var liste = [];
+  if (demo) {
+    if (d === aujourdhui()) liste = Object.keys(dPres).map(function(k){ return dPres[k]; }).filter(function(x){ return x.groupe === actif; });
+  } else {
+    try {
+      var s = await getDocs(query(collection(db, 'presences'), where('groupe', '==', actif), where('date', '==', d)));
+      liste = s.docs.map(function(x){ return x.data(); });
+    } catch (e) { erreur(e); return; }
+  }
+  if (!liste.length) { z.appendChild(el('p', '', 'Aucune présence enregistrée ce jour-là.')); return; }
+  var noms = {}; dEmp.concat(employes).forEach(function(e){ noms[e.id] = e.nom; });
+  liste.forEach(function(x){
+    var t = (x.nom || noms[x.employeId] || 'Ancien employé') + ' : ' + (x.statut === 'present' ? 'présent' : 'absent');
+    if (x.fini) t += ', a fini son service';
+    if (x.heuresSup) t += ', ' + x.heuresSup + ' h sup';
+    z.appendChild(el('p', '', t));
+  });
+}
+const ETAPES = [
+  ['Bienvenue', 'Ici, tu gères les présences de ton groupe. L’heure affichée est celle de ton téléphone.', 'horloge'],
+  ['Ajouter un employé', 'Écris son nom, choisis son poste, puis appuie sur « Ajouter l’employé ».', 'nom'],
+  ['Présent ou absent', 'Pour chaque employé, appuie sur « Présent » ou « Absent ». Tu peux changer si tu t’es trompé.', 'liste'],
+  ['Fin de service et heures sup', 'Quand un employé est présent, coche « A fini son service » à son départ, et écris ses heures supplémentaires dans « h sup ».', 'liste'],
+  ['Corriger ou démission', '« Modifier » corrige le nom d’un employé. « Démission » le retire de la liste.', 'liste'],
+  ['Le résumé du jour', 'Cette ligne compte les présents, les absents, les non marqués et ceux qui ont fini leur service.', 'bilan'],
+  ['Historique', 'Choisis une date pour revoir les présences d’un jour passé.', 'dateHisto'],
+  ['Sans réseau', 'Si internet coupe, continue de saisir : tout est envoyé dès que le réseau revient.', null]
+];
+let etape = 0;
+function tuto(i){
+  var t = document.getElementById('tuto');
+  document.querySelectorAll('.surligne').forEach(function(n){ n.classList.remove('surligne'); });
+  if (i < 0 || i >= ETAPES.length) { t.hidden = true; return; }
+  etape = i; var s = ETAPES[i]; t.hidden = false;
+  document.getElementById('tutoTitre').textContent = s[0];
+  document.getElementById('tutoNum').textContent = (i + 1) + ' / ' + ETAPES.length;
+  document.getElementById('tutoTexte').textContent = s[1];
+  document.getElementById('tutoSuiv').textContent = i === ETAPES.length - 1 ? 'Terminer' : 'Suivant';
+  document.getElementById('tutoPrec').disabled = i === 0;
+  var c = s[2] && document.getElementById(s[2]);
+  if (c) { c.classList.add('surligne'); c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 }
 function demission(e){
   if (!confirm('Enregistrer la démission de ' + e.nom + ' ?')) return;
@@ -316,7 +381,11 @@ if (auth) {
   });
 }
 
-document.getElementById('demo').addEventListener('click', demarrerDemo);
+document.getElementById('dateHisto').addEventListener('change', chargerHisto);
+document.getElementById('aide').onclick = function(){ tuto(0); };
+document.getElementById('tutoSuiv').onclick = function(){ tuto(etape + 1); };
+document.getElementById('tutoPrec').onclick = function(){ tuto(etape - 1); };
+document.getElementById('tutoFin').onclick = function(){ tuto(-1); };
 document.getElementById('ok').addEventListener('click', async function(){
   var code = document.getElementById('code').value;
   var cle = document.getElementById('acces').value;
@@ -337,6 +406,7 @@ document.getElementById('ok').addEventListener('click', async function(){
 
 document.getElementById('sortir').addEventListener('click', async function(){
   demo = false; document.getElementById('bandeauDemo').hidden = true;
+  tuto(-1);
   arreter();
   if (auth) await signOut(auth);
   location.hash = '#connexion';
