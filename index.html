@@ -70,8 +70,28 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 .datelongue{margin:.1rem 0 .6rem;text-transform:capitalize}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .horloge{color:var(--or)}}
 .surligne{outline:3px solid var(--or);outline-offset:4px;border-radius:6px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem;margin:.6rem 0}
+.stats div{border:1px solid var(--ligne);border-top:4px solid var(--or);border-radius:6px;padding:.5rem .7rem;display:flex;flex-direction:column}
+.stats span{font-size:.8rem;opacity:.8}
+.stats strong{font-size:1.6rem;line-height:1.2;color:var(--bleu)}
+.stats small{font-size:.78rem;opacity:.75}
+.actions{display:flex;flex-wrap:wrap;gap:.5rem;margin:.6rem 0}
+@media (min-width:720px){.stats{grid-template-columns:repeat(4,1fr)}}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .stats strong{color:var(--or)}}
 .hs{width:5.5rem;padding:.4rem}
 .fini input{width:1.2rem;height:1.2rem;padding:0}
+.graphes{display:grid;gap:.6rem;margin:.6rem 0}
+.gcarte{border:1px solid var(--ligne);border-radius:6px;padding:.6rem .8rem}
+.barres{display:flex;align-items:flex-end;gap:2px;height:100px;margin:.5rem 0 .2rem}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end}
+.col i{display:block;width:100%}
+.bp{background:#2e7d32}.ba{background:#c62828}
+.donut-zone{display:flex;align-items:center;gap:1rem;margin-top:.5rem}
+.donut{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;background:#b8a99a}
+.donut span{width:64px;height:64px;border-radius:50%;background:var(--carte);display:grid;place-items:center;font-weight:800;font-size:1.3rem}
+.leg{list-style:none;margin:0;padding:0}
+.jl{margin:.2rem 0;font-size:.92rem;border-bottom:1px dashed var(--ligne)}
+@media (min-width:720px){.graphes{grid-template-columns:2fr 1fr}}
 </style>
 </head>
 <body>
@@ -100,6 +120,16 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     <p class="horloge" id="horloge" aria-label="Heure actuelle"></p>
     <p class="datelongue" id="dateLongue"></p>
     <div class="onglets" id="onglets"></div>
+    <div class="stats">
+      <div><span>Effectif actif</span><strong id="sEff">0</strong></div>
+      <div><span>Présents aujourd’hui</span><strong id="sPres">0</strong><small id="sPresDet"></small></div>
+      <div><span>À renseigner</span><strong id="sRens">0</strong></div>
+      <div><span>Présence, 5 semaines</span><strong id="sTaux">–</strong></div>
+    </div>
+    <div class="graphes">
+      <div class="gcarte"><strong>Présences sur 30 jours</strong><div class="barres" id="barres"></div><small id="barresLeg"></small><small> · vert : présents, rouge : absents</small></div>
+      <div class="gcarte"><strong>Statut du jour</strong><div class="donut-zone"><div class="donut" id="donut"><span id="donutNum">0</span></div><ul class="leg" id="donutLeg"></ul></div></div>
+    </div>
     <h3 id="titreGroupe" style="margin:.8rem 0 0"></h3>
     <p class="bilan" id="bilan"></p>
     <div class="ajout">
@@ -108,6 +138,11 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
       <button class="bouton" id="ajouter" type="button">Ajouter l’employé</button>
     </div>
     <p id="erreurEspace" role="status"></p>
+    <div class="actions">
+      <button class="petit" id="tous" type="button">Tous présents</button>
+      <button class="petit" id="expJour" type="button">Exporter la journée (CSV)</button>
+      <button class="petit" id="effacer" type="button">Effacer la journée</button>
+    </div>
     <div id="liste"></div>
     <h3 style="margin:1.4rem 0 .3rem">Heures supplémentaires de la semaine</h3>
     <div id="heures"></div>
@@ -116,6 +151,21 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
     <h3 style="margin:1.4rem 0 .3rem">Historique</h3>
     <input type="date" id="dateHisto">
     <div id="histo" style="margin-top:.5rem"></div>
+    <h3 style="margin:1.4rem 0 .3rem">Journal d’activité</h3>
+    <div id="journal"></div>
+    <h3 style="margin:1.4rem 0 .3rem">Exporter une période</h3>
+    <div class="ajout">
+      <label for="dateDu">Du</label><input type="date" id="dateDu">
+      <label for="dateAu">Au</label><input type="date" id="dateAu">
+      <button class="petit" id="expPer" type="button">Exporter (CSV)</button>
+    </div>
+    <div id="sauv" hidden>
+      <h3 style="margin:1.4rem 0 .3rem">Sauvegarde complète</h3>
+      <p>Fichier .json avec tous les employés, toutes les présences et le journal. Garde-le sur une clé USB ou un disque externe.</p>
+      <p id="derniereSauv"></p>
+      <div class="actions"><button class="bouton" id="sauvExp" type="button">Exporter une sauvegarde</button><button class="petit" id="sauvImp" type="button">Restaurer une sauvegarde</button></div>
+      <input type="file" id="sauvFichier" accept=".json,application/json" hidden>
+    </div>
     <button class="petit" id="aide" type="button" style="margin-top:1.2rem">Didacticiel</button>
     <button class="bouton" id="sortir" type="button" style="margin-top:1.2rem">Se déconnecter</button>
   </div>
@@ -131,7 +181,7 @@ select,input{width:100%;font:inherit;padding:.7rem;border:2px solid var(--bleu);
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, updateDoc, query, where, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, addDoc, setDoc, updateDoc, query, where, getDocs, deleteDoc, writeBatch, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 /* 1. Colle ici la configuration de ton projet Firebase (Paramètres du projet > Vos applications). */
@@ -191,11 +241,14 @@ function arreter(){ coupe.forEach(function(f){ f(); }); coupe = []; employes = [
 function demarrer(c){
   demo = false; document.getElementById('bandeauDemo').hidden = true;
   groupes = c.groupe ? [c.groupe] : [1, 2];
+  document.getElementById('sauv').hidden = groupes.length < 2;
+  majSauv();
   choisir(groupes[0]);
 }
 function choisir(g){
   arreter(); actif = g;
-  var dh = document.getElementById('dateHisto'); dh.max = aujourdhui(); dh.value = aujourdhui(); chargerHisto();
+  var dh = document.getElementById('dateHisto'); dh.max = aujourdhui(); dh.value = aujourdhui(); chargerHisto(); chargerTaux();
+  document.getElementById('dateDu').value = lundi(); document.getElementById('dateAu').value = aujourdhui();
   if (demo) { demoCharger(); return; }
   coupe.push(onSnapshot(query(collection(db, 'employes'), where('groupe', '==', g), where('actif', '==', true)), function(s){
     employes = s.docs.map(function(d){ return Object.assign({ id: d.id }, d.data()); })
@@ -287,6 +340,15 @@ function dessiner(){
   var recents = employes.filter(function(e){ return e.arrivee >= lundi(); });
   if (!recents.length) nv.appendChild(el('p', '', 'Aucun nouvel arrivant cette semaine.'));
   recents.forEach(function(e){ nv.appendChild(el('p', '', e.nom + ' (' + (POSTES[e.poste] || e.poste) + '), arrivé le ' + e.arrivee)); });
+  document.getElementById('sEff').textContent = employes.length;
+  document.getElementById('sPres').textContent = p;
+  document.getElementById('sPresDet').textContent = a + ' absent(s)';
+  document.getElementById('sRens').textContent = employes.length - p - a;
+  var tt = employes.length, gp = tt ? 100 * p / tt : 0, ga = tt ? 100 * a / tt : 0;
+  document.getElementById('donut').style.background = tt ? 'conic-gradient(#2e7d32 0 ' + gp + '%, #c62828 ' + gp + '% ' + (gp + ga) + '%, #b8a99a ' + (gp + ga) + '% 100%)' : '#b8a99a';
+  document.getElementById('donutNum').textContent = p;
+  var lg = document.getElementById('donutLeg'); lg.replaceChildren();
+  [['Présents', p], ['Absents', a], ['À saisir', tt - p - a]].forEach(function(x){ lg.appendChild(el('li', '', x[0] + ' : ' + x[1])); });
   document.getElementById('bilan').textContent = 'Aujourd’hui : ' + p + ' présents, ' + a + ' absents, ' + (employes.length - p - a) + ' non marqués, ' + f + ' ont fini leur service';
 }
 function marquer(e, s){
@@ -308,10 +370,12 @@ function renommer(e){
   var n = prompt('Nouveau nom pour ' + e.nom + ' :', e.nom);
   if (!n || !n.trim() || n.trim() === e.nom) return;
   if (demo) { e.nom = n.trim(); demoCharger(); return; }
+  noter('Nom modifié : ' + e.nom + ' → ' + n.trim());
   updateDoc(doc(db, 'employes', e.id), { nom: n.trim() }).catch(erreur);
 }
 async function chargerHisto(){
   var d = document.getElementById('dateHisto').value || aujourdhui();
+  chargerJournal();
   var z = document.getElementById('histo'); z.replaceChildren();
   var liste = [];
   if (demo) {
@@ -330,6 +394,142 @@ async function chargerHisto(){
     if (x.heuresSup) t += ', ' + x.heuresSup + ' h sup';
     z.appendChild(el('p', '', t));
   });
+}
+function lundiDe(d){ var x = new Date(d); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toLocaleDateString('sv-SE'); }
+async function chargerTaux(){
+  var z = document.getElementById('sTaux'); z.textContent = '…';
+  if (demo) { z.textContent = '97 %'; return; }
+  var sem = [], d = new Date();
+  for (var i = 0; i < 5; i++) { sem.push(lundiDe(d)); d.setDate(d.getDate() - 7); }
+  try {
+    var s = await getDocs(query(collection(db, 'presences'), where('groupe', '==', actif), where('semaine', 'in', sem)));
+    var p = 0, a = 0, jour = {};
+    s.docs.forEach(function(x){
+      var q = x.data(), st = q.statut;
+      if (st === 'present') p++; if (st === 'absent') a++;
+      var t = jour[q.date] || (jour[q.date] = { p: 0, a: 0 });
+      if (st === 'present') t.p++; if (st === 'absent') t.a++;
+    });
+    barres(jour);
+    z.textContent = (p + a) ? Math.round(100 * p / (p + a)) + ' %' : '–';
+  } catch (e) { z.textContent = '–'; }
+}
+function tousPresents(){
+  var a = employes.filter(function(e){ return !(presences[e.id] && presences[e.id].statut); });
+  if (!a.length) return;
+  if (!confirm('Marquer présents les ' + a.length + ' employés non marqués ?')) return;
+  a.forEach(function(e){
+    if (demo) { dPres[e.id] = { employeId: e.id, nom: e.nom, groupe: e.groupe, statut: 'present' }; return; }
+    setDoc(doc(db, 'presences', aujourdhui() + '_' + e.id), { employeId: e.id, nom: e.nom, groupe: e.groupe, date: aujourdhui(), semaine: lundi(), statut: 'present', maj: serverTimestamp() }, { merge: true }).catch(erreur);
+  });
+  if (demo) demoCharger(); else noter('Tous présents : ' + a.length + ' employé(s) marqués présents');
+}
+const ENTETE = ['Nom', 'Poste', 'Groupe', 'Date', 'Statut', 'A fini son service', 'Heures sup'];
+function ligne(nom, poste, g, date, p){
+  return [nom, POSTES[poste] || poste || '', 'Groupe ' + g, date, p && p.statut ? (p.statut === 'present' ? 'Présent' : 'Absent') : 'Non saisi', p && p.fini ? 'Oui' : 'Non', p && p.heuresSup ? p.heuresSup : 0];
+}
+function telecharger(nom, lignes){
+  var txt = '\ufeff' + lignes.map(function(l){ return l.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' }));
+  a.download = nom; document.body.appendChild(a); a.click(); a.remove();
+}
+function exporterJour(){
+  var l = [ENTETE];
+  employes.forEach(function(e){ l.push(ligne(e.nom, e.poste, actif, aujourdhui(), presences[e.id])); });
+  telecharger('presences-groupe' + actif + '-' + aujourdhui() + '.csv', l);
+}
+async function exporterPeriode(){
+  var m = document.getElementById('erreurEspace');
+  var du = document.getElementById('dateDu').value, au = document.getElementById('dateAu').value;
+  if (!du || !au || du > au) { m.textContent = 'Choisis une date de début avant la date de fin.'; return; }
+  if (demo) { m.textContent = 'L’export par période n’est pas disponible dans la démonstration.'; return; }
+  var jours = [], c = new Date(du + 'T12:00:00'), fin = new Date(au + 'T12:00:00');
+  while (c <= fin && jours.length < 62) { jours.push(c.toLocaleDateString('sv-SE')); c.setDate(c.getDate() + 1); }
+  m.textContent = 'Préparation du fichier…';
+  try {
+    var res = await Promise.all(jours.map(function(j){ return getDocs(query(collection(db, 'presences'), where('groupe', '==', actif), where('date', '==', j))); }));
+    var info = {}; employes.forEach(function(e){ info[e.id] = e; });
+    var l = [];
+    res.forEach(function(s){ s.docs.forEach(function(x){ var d = x.data(), e = info[d.employeId] || {}; l.push(ligne(d.nom || e.nom || 'Ancien employé', e.poste, actif, d.date, d)); }); });
+    l.sort(function(a, b){ return (a[3] + a[0]).localeCompare(b[3] + b[0]); });
+    m.textContent = l.length ? '' : 'Aucune présence enregistrée sur cette période.';
+    if (l.length) telecharger('presences-groupe' + actif + '-' + du + '-au-' + au + '.csv', [ENTETE].concat(l));
+  } catch (e) { erreur(e); }
+}
+function noter(texte){
+  if (demo || !db || !auth || !auth.currentUser) return;
+  var c = compte(auth.currentUser.email);
+  addDoc(collection(db, 'journal'), { groupe: actif, jour: aujourdhui(), quand: new Date().toISOString(), auteur: c ? c.nom : '', texte: texte }).catch(function(){});
+  setTimeout(chargerJournal, 900);
+}
+async function chargerJournal(){
+  var z = document.getElementById('journal'); z.replaceChildren();
+  if (demo) return;
+  var d = document.getElementById('dateHisto').value || aujourdhui();
+  try {
+    var s = await getDocs(query(collection(db, 'journal'), where('groupe', '==', actif), where('jour', '==', d)));
+    var l = s.docs.map(function(x){ return x.data(); }).sort(function(a, b){ return b.quand.localeCompare(a.quand); });
+    if (!l.length) { z.appendChild(el('p', '', 'Aucune action notée ce jour-là.')); return; }
+    l.forEach(function(x){ z.appendChild(el('p', 'jl', new Date(x.quand).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + '  ' + x.texte + (x.auteur ? ' (' + x.auteur + ')' : ''))); });
+  } catch (e) { z.appendChild(el('p', '', 'Journal indisponible.')); }
+}
+function barres(jour){
+  var z = document.getElementById('barres'); z.replaceChildren();
+  var jours = [];
+  for (var i = 29; i >= 0; i--) { var x = new Date(); x.setDate(x.getDate() - i); jours.push(x.toLocaleDateString('sv-SE')); }
+  var max = 1; jours.forEach(function(j){ var v = jour[j]; if (v && v.p + v.a > max) max = v.p + v.a; });
+  jours.forEach(function(j){
+    var v = jour[j] || { p: 0, a: 0 }, c = el('div', 'col');
+    c.title = j + ' : ' + v.p + ' présents, ' + v.a + ' absents';
+    var ba = el('i', 'ba'), bp = el('i', 'bp');
+    ba.style.height = Math.round(100 * v.a / max) + 'px'; bp.style.height = Math.round(100 * v.p / max) + 'px';
+    c.appendChild(ba); c.appendChild(bp); z.appendChild(c);
+  });
+  document.getElementById('barresLeg').textContent = jours[0].slice(5) + ' → ' + jours[29].slice(5);
+}
+function effacer(){
+  var a = employes.filter(function(e){ return presences[e.id] && presences[e.id].statut; });
+  if (!a.length) return;
+  if (!confirm('Effacer les présences d’aujourd’hui pour ' + a.length + ' employé(s) ?')) return;
+  if (demo) { a.forEach(function(e){ delete dPres[e.id]; }); demoCharger(); return; }
+  a.forEach(function(e){ deleteDoc(doc(db, 'presences', aujourdhui() + '_' + e.id)).catch(erreur); });
+  noter('Journée effacée : ' + a.length + ' présence(s) supprimée(s)');
+}
+function majSauv(){
+  var t = ''; try { t = localStorage.getItem('derniereSauv') || ''; } catch (e) {}
+  document.getElementById('derniereSauv').textContent = t ? 'Dernière sauvegarde exportée le ' + t + '.' : 'Aucune sauvegarde exportée depuis cet appareil.';
+}
+const COLLECTIONS = ['employes', 'presences', 'journal'];
+async function sauvegarder(){
+  var m = document.getElementById('erreurEspace'); m.textContent = 'Préparation de la sauvegarde…';
+  try {
+    var r = await Promise.all(COLLECTIONS.map(function(c){ return getDocs(collection(db, c)); }));
+    var out = { app: 'romeo-business', date: new Date().toISOString() };
+    COLLECTIONS.forEach(function(c, i){ out[c] = r[i].docs.map(function(d){ var x = d.data(); delete x.maj; delete x.creeLe; return Object.assign({ id: d.id }, x); }); });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+    a.download = 'sauvegarde-romeo-' + aujourdhui() + '.json'; document.body.appendChild(a); a.click(); a.remove();
+    try { localStorage.setItem('derniereSauv', new Date().toLocaleString('fr-FR')); } catch (e) {}
+    m.textContent = ''; majSauv(); noter('Sauvegarde exportée');
+  } catch (e) { erreur(e); }
+}
+async function restaurer(f){
+  var m = document.getElementById('erreurEspace');
+  try {
+    var d = JSON.parse(await f.text());
+    if (d.app !== 'romeo-business') throw new Error('fichier');
+    if (!confirm('Restaurer cette sauvegarde ? Les données du fichier remplaceront celles qui ont le même identifiant.')) return;
+    var ops = [];
+    COLLECTIONS.forEach(function(c){ (d[c] || []).forEach(function(x){ var y = Object.assign({}, x); delete y.id; ops.push([c, x.id, y]); }); });
+    m.textContent = 'Restauration en cours…';
+    for (var i = 0; i < ops.length; i += 400) {
+      var b = writeBatch(db);
+      ops.slice(i, i + 400).forEach(function(o){ b.set(doc(db, o[0], o[1]), o[2], { merge: true }); });
+      await b.commit();
+    }
+    m.textContent = 'Sauvegarde restaurée (' + ops.length + ' éléments).'; noter('Sauvegarde restaurée');
+  } catch (e) { m.textContent = 'Fichier de sauvegarde invalide, ou action refusée.'; }
 }
 const ETAPES = [
   ['Bienvenue', 'Ici, tu gères les présences de ton groupe. L’heure affichée est celle de ton téléphone.', 'horloge'],
@@ -359,6 +559,7 @@ function demission(e){
   if (!confirm('Enregistrer la démission de ' + e.nom + ' ?')) return;
   if (demo) { e.actif = false; demoCharger(); return; }
   updateDoc(doc(db, 'employes', e.id), { actif: false, demission: aujourdhui() }).catch(erreur);
+  noter('Démission : ' + e.nom);
 }
 document.getElementById('ajouter').addEventListener('click', function(){
   var champ = document.getElementById('nom'), nom = champ.value.trim();
@@ -366,6 +567,7 @@ document.getElementById('ajouter').addEventListener('click', function(){
   if (demo) { dEmp.push({ id: 'd' + Date.now(), nom: nom, poste: document.getElementById('poste').value, groupe: actif, actif: true, arrivee: aujourdhui() }); champ.value = ''; demoCharger(); return; }
   document.getElementById('erreurEspace').textContent = '';
   addDoc(collection(db, 'employes'), { nom: nom, poste: document.getElementById('poste').value, groupe: actif, actif: true, arrivee: aujourdhui(), creeLe: serverTimestamp() }).catch(erreur);
+  noter('Employé ajouté : ' + nom + ', ' + (POSTES[document.getElementById('poste').value] || ''));
   champ.value = '';
 });
 
@@ -382,6 +584,13 @@ if (auth) {
 }
 
 document.getElementById('dateHisto').addEventListener('change', chargerHisto);
+document.getElementById('tous').onclick = tousPresents;
+document.getElementById('expJour').onclick = exporterJour;
+document.getElementById('expPer').onclick = exporterPeriode;
+document.getElementById('effacer').onclick = effacer;
+document.getElementById('sauvExp').onclick = sauvegarder;
+document.getElementById('sauvImp').onclick = function(){ document.getElementById('sauvFichier').click(); };
+document.getElementById('sauvFichier').onchange = function(e){ if (e.target.files[0]) restaurer(e.target.files[0]); e.target.value = ''; };
 document.getElementById('aide').onclick = function(){ tuto(0); };
 document.getElementById('tutoSuiv').onclick = function(){ tuto(etape + 1); };
 document.getElementById('tutoPrec').onclick = function(){ tuto(etape - 1); };
